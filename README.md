@@ -2,16 +2,16 @@
 
 # SpatialVLA: Exploring Spatial Representations for Visual-Language-Action Models
 A spatial-enhanced vision-language-action model trained on 1.1 Million real robot episodes. 🤗
-purely huggingFace-based, concise code with effective performance.
+purely huggingFace-based, concise code with efficient performance.
 
 <!-- <div align="center">
   <img width="500" alt="image" src="https://github.com/user-attachments/assets/930e6814-8a9f-43e1-a284-118a5732daa4">
   <br>
 </div> -->
 
-[\[📄Paper\]](https://arxiv.org/pdf/2501.15830)  [\[🔥Project Page\]](https://spatialvla.github.io/) [\[📖 Document\]](#documents) [\[🚀 Quick Start\]](#-quick-start) [\[✅ Performance\]](#what-can-spatialvla-do) [\[🤔 FAQs\]](#faqs)
+[\[📄Paper\]](https://arxiv.org/pdf/2501.15830)  [\[🔥Project Page\]](https://spatialvla.github.io/) [\[📖 Document\]](#documents) [\[🚀 Quick Start\]](#🚀-quick-start) [\[✅ Performance\]](#✅-performance-in-simulation-and-real-world) [\[🤗 FAQs\]](#🤗-faqs)
 
-[\[🔥Pre-train\]](#faqs) [\[🚀 Fine-tune\]](#faqs) [\[🎄Custom Dataset\]](#faqs)
+[\[🔥Pre-train\]](#🌟-pre-train-from-scratch) [\[🚀 Fine-tune\]](#🌟-fine-tune-from-spatialvla) [\[🎄Custom Dataset\]](#🎄-use-custom-datasets)
 
 ![perform](.assets/teaser.png)
 
@@ -22,9 +22,9 @@ purely huggingFace-based, concise code with effective performance.
 
 ## Documents
 
-### 🌟 **Quick Start**
+### 🚀 Quick Start
 
-
+SpatialVLA relies solely on HuggingFace Transformers 🤗, making deployment extremely easy. If your environment supports `transformers >= 4.47.0`, you can directly use the following code to load the model and perform inference. (requires 8.5GB of GPU memory).
 
 ```python
 import torch
@@ -45,13 +45,45 @@ actions = processor.decode_actions(generation_outputs, unnorm_key="bridge_orig/1
 print(actions)
 ```
 
+If you want to use the model for fine-tuning or pre-training, you need to install the required packages and download the model from the Hugging Face model hub. The VLM backbone of SpatialVLA is PaLiGemma2, which requires transformers >= 4.47.0. Hence, create a Python environment with Python >= 3.10.
+
+```bash
+conda create -n spatialvla python=3.10
+conda activate spatialvla
+```
+
+Install packages from `requirements.txt` file. Note that we use a customised `dlimp` to support seed setting for reproducibility. If you catch any problems, please manually install the dlimp form the [dlimp_custom](https://github.com/SpatialVLA/dlimp_custom).
+
+```bash
+pip install -r requirements.txt
+```
 
 ### 🌟 **Pre-train from Scratch**
+SpatialVLA is pre-trained with 1.1 Million real-robot demonstrations from the OXE and RH20T dataset on a cluster of 64 A100 GPUs for abut 10 days, using a batch size of 2048. You can pre-train the model from scratch using the following command.
+
+```bash
+# torchrun
+bash scripts/spatialvla_4b_pretrain/torchrun_pretrain.sh
+
+# or in a slurm cluster
+bash scripts/spatialvla_4b_pretrain/slurm_pretrain.sh
+```
 
 ### 🌟 **Fine-tune from SpatialVLA**
 
-### 🌟 **Use Custom Datasets**
+Most of our fine-tuning experiments are conducted using LoRA on 4 or 8 A100 GPUs.
+You can use the following scripts for full-parameter or LoRA fine-tuning. For real-world experiments with small datasets, we prefer using LoRA for fine-tuning.
 
+```bash
+# full fine-tuning
+bash scripts/spatialvla_4b_finetune/finetune_full.sh
+
+# LoRA fine-tuning
+bash scripts/spatialvla_4b_finetune/finetune_lora.sh
+```
+
+### 🎄 Use Custom Datasets
+TODO
 
 ## 🤗 Model Zoo
 
@@ -73,14 +105,7 @@ print(actions)
   </tr>
 </table>
 
-## TODO List
-
-- [x] Release pre-training / fine-tuning code for SpatialVLA series.
-- [x] Release the code, model, and custom data of SpatialVLA.
-- [ ] Release the SimplerENV evaluation code for SpatialVLA series
-- [ ] Release SpatialVLA2
-
-## Performance Evaluation
+## ✅ Performance in Simulation and Real-world
 <details>
   <summary>
   SimplerEnv evaluation on Google Robot tasks.
@@ -490,9 +515,15 @@ print(actions)
   <img src=".assets/franka_sft.png" alt="perform">
 </details>
 
+## TODO List
 
+- [x] Release pre-training / fine-tuning code for SpatialVLA series.
+- [x] Release the code, model, and custom data of SpatialVLA.
+- [ ] Release the SimplerENV evaluation code for SpatialVLA series
+- [ ] Release SpatialVLA2
 
-## FAQs
+## 🤗 FAQs
+If you encounter any issues, feel free to open an issue on GitHub or reach out through discussions. We appreciate your feedback and contributions! 🚀
 
 ## License
 
