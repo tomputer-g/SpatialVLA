@@ -546,4 +546,4 @@ If you find this project useful in your research, please consider cite:
 ```
 
 ## Acknowledgement
-InternVL is built with reference to the code of the following projects: [InternVL](https://github.com/OpenGVLab/InternVL), [Google Paligemma2](https://huggingface.co/google/paligemma2-3b-pt-224), [Transformers](https://github.com/huggingface/transformers), [OpenVLA](https://github.com/openvla/openvla) and [ZoeDepth](https://huggingface.co/spaces/shariqfarooq/ZoeDepth). Thanks for their awesome work!
+SpatialVLA is built with reference to the code of the following projects: [InternVL](https://github.com/OpenGVLab/InternVL), [Google Paligemma2](https://huggingface.co/google/paligemma2-3b-pt-224), [Transformers](https://github.com/huggingface/transformers), [OpenVLA](https://github.com/openvla/openvla) and [ZoeDepth](https://huggingface.co/spaces/shariqfarooq/ZoeDepth). Thanks for their awesome work!
