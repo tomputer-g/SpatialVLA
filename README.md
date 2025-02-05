@@ -9,9 +9,9 @@ purely huggingFace-based, concise code with efficient performance.
   <br>
 </div> -->
 
-[\[📄Paper\]](https://arxiv.org/pdf/2501.15830)  [\[🔥Project Page\]](https://spatialvla.github.io/) [\[📖 Document\]](#documents) [\[🚀 Quick Start\]](#🚀-quick-start) [\[✅ Performance\]](#✅-performance-in-simulation-and-real-world) [\[🤗 FAQs\]](#🤗-faqs)
+[\[📄Paper\]](https://arxiv.org/pdf/2501.15830)  [\[🔥Project Page\]](https://spatialvla.github.io/) [\[📖 Document\]](#documents) [\[🚀 Quick Start\]](#-quick-start) [\[✅ Performance\]](#-performance-in-simulation-and-real-world) [\[🤗 FAQs\]](#-faqs)
 
-[\[🔥Pre-train\]](#🌟-pre-train-from-scratch) [\[🚀 Fine-tune\]](#🌟-fine-tune-from-spatialvla) [\[🎄Custom Dataset\]](#🎄-use-custom-datasets)
+[\[🔥Pre-train\]](#-pre-train-from-scratch) [\[🚀 Fine-tune\]](#-fine-tune-from-spatialvla) [\[🎄Custom Dataset\]](#-use-custom-datasets)
 
 ![perform](.assets/teaser.png)
 
@@ -33,11 +33,10 @@ from transformers import AutoModel, AutoProcessor
 
 model_name_or_path="IPEC-COMMUNITY/spatialvla-4b-224-pt"
 processor = AutoProcessor.from_pretrained(model_name_or_path, trust_remote_code=True)
-
 model = AutoModel.from_pretrained(model_name_or_path, trust_remote_code=True, torch_dtype=torch.bfloat16).eval().cuda()
 
 image = Image.open("example.png").convert("RGB")
-prompt = "What action should the robot take to pick the cpu?"
+prompt = "What action should the robot take to pick the cup?"
 inputs = processor(images=[image], text=prompt, return_tensors="pt")
 generation_outputs = model.predict_action(inputs)
 
