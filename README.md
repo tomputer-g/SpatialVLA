@@ -19,6 +19,7 @@ purely huggingFace-based, concise code with efficient performance.
 
 ## News 🚀🚀🚀
 - `2025/01/29`: We release the [SpatialVLA 1.0](https://huggingface.co/collections/IPEC-COMMUNITY/foundation-vision-language-action-model-6795eb96a9c661f90236acbb). SpatialVLA achieves state-of-the-art performance across a diverse range of evaluations and shows significantly faster inference speed with fewer tokens per action.
+- `2025/02/06`: We release the SimplerEnv evaluation code for SpatialVLA. Please refer to [DelinQu/SimplerEnv-OpenVLA](https://github.com/DelinQu/SimplerEnv-OpenVLA/), and make sure `transformers >= 4.47.0`.
 
 ## Documents
 
@@ -80,6 +81,16 @@ bash scripts/spatialvla_4b_finetune/finetune_full.sh
 # LoRA fine-tuning
 bash scripts/spatialvla_4b_finetune/finetune_lora.sh
 ```
+
+
+### 🌟 **SimplerEnv Benchmark**
+We release the SimplerEnv evaluation code for SpatialVLA based on [DelinQu/SimplerEnv-OpenVLA](https://github.com/DelinQu/SimplerEnv-OpenVLA/). Please install the simpler_env environment by following [DelinQu/SimplerEnv-OpenVLA](https://github.com/DelinQu/SimplerEnv-OpenVLA/) and make sure `transformers >= 4.47.0`. After install all the dependencies, you can perform the evaluation by: 
+
+```bash
+# under the project dir of SimplerEnv-OpenVLA/
+bash scripts/run_spatialvla.sh
+```
+Note: Similar to most papers, e.g., HPT and TraceVLA, we omitted the `Open Top Drawer and Place Apple` from our evaluation, since the vast majority of policies achieved scores approaching 0 on this task.
 
 ### 🎄 Use Custom Datasets
 TODO
@@ -518,7 +529,7 @@ TODO
 
 - [x] Release pre-training / fine-tuning code for SpatialVLA series.
 - [x] Release the code, model, and custom data of SpatialVLA.
-- [ ] Release the SimplerENV evaluation code for SpatialVLA series
+- [x] Release the SimplerENV evaluation code for SpatialVLA series
 - [ ] Release SpatialVLA2
 
 ## 🤗 FAQs
