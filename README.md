@@ -4,6 +4,10 @@
 A spatial-enhanced vision-language-action model trained on 1.1 Million real robot episodes. 🤗
 purely huggingFace-based, concise code with efficient performance.
 
+<!-- [Delin Qu*](https://github.com/DelinQu), [HaomingSong*](https://github.com/HaomingSong), [Qizhi Chen*](https://github.com/Tavish9), [Yuanqi Yao](https://scholar.google.com/citations?user=s482QHoAAAAJ&hl=zh-CN), [Xinyi Ye](https://scholar.google.com/citations?user=GlYeyfoAAAAJ&hl=zh-CN), [Yan Ding](https://yding25.com), [Zhigang Wang](https://scholar.google.com/citations?user=cw3EaAYAAAAJ&hl=zh-CN), [JiaYuan Gu](https://cseweb.ucsd.edu/~jigu/), [Bin Zhao](https://scholar.google.com/citations?hl=zh-CN&user=DQB0hqwAAAAJ), [Xuelong Li†](https://scholar.google.com/citations?user=ahUibskAAAAJ)
+
+Shanghai AI Laboratory, ShanghaiTech, TeleAI -->
+
 <!-- <div align="center">
   <img width="500" alt="image" src="https://github.com/user-attachments/assets/930e6814-8a9f-43e1-a284-118a5732daa4">
   <br>
@@ -116,10 +120,9 @@ TODO
 </table>
 
 ## ✅ Performance in Simulation and Real-world
-<details>
-  <summary>
-  SimplerEnv evaluation on Google Robot tasks.
-  </summary>
+> [!NOTE]
+> SimplerEnv evaluation on Google Robot tasks.
+
 <table border="1" class="dataframe">
   <thead>
     <tr style="text-align: center;">
@@ -285,13 +288,9 @@ TODO
   </tbody>
 </table>
 
-</details>
+> [!NOTE]
+> SimplerEnv evaluation on WidowX Robot tasks.
 
-
-<details>
-  <summary>
-  SimplerEnv evaluation on WidowX Robot tasks.
-  </summary>
   <table border="1" class="dataframe">
     <thead>
       <tr style="text-align: center;">
@@ -412,10 +411,10 @@ TODO
       </tr>
     </tbody>
   </table>
-</details>
 
-<details>
-  <summary>LIBERO Simulation Benchmark Results.</summary>
+> [!NOTE]
+> LIBERO Simulation Benchmark Results.
+
 <table border="1" class="dataframe">
   <thead>
     <tr style="text-align: center;">
@@ -508,22 +507,20 @@ TODO
   </tbody>
 </table>
 
-</details>
+> [!NOTE]
+> Zero-shot Robot Control Evaluation on WidowX Robot.
 
-<details>
-  <summary>Zero-shot Robot Control Evaluation on WidowX Robot.</summary>
-  <img src=".assets/widowX_zeroshot.png" alt="perform">
-</details>
+<img src=".assets/widowX_zeroshot.png" alt="perform">
 
-<details>
-  <summary>Spatial Understanding Capability Evaluation..</summary>
-  <img src=".assets/spatial_setup.png" alt="perform">
-</details>
+> [!NOTE]
+> Spatial Understanding Capability Evaluation.
 
-<details>
-  <summary>Adapting to New Robot Setups on Franka Robot.</summary>
-  <img src=".assets/franka_sft.png" alt="perform">
-</details>
+<img src=".assets/spatial_setup.png" alt="perform">
+
+> [!NOTE]
+> Adapting to New Robot Setups on Franka Robot.
+
+<img src=".assets/franka_sft.png" alt="perform">
 
 ## TODO List
 
