@@ -508,7 +508,7 @@ TODO
 </table>
 
 > [!NOTE]
-> Zero-shot Robot Control Evaluation on WidowX Robot.
+> Zero-shot Robot Control Evaluation on real-world WidowX Robot.
 
 <img src=".assets/widowX_zeroshot.png" alt="perform">
 
