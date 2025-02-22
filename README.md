@@ -97,7 +97,12 @@ bash scripts/run_spatialvla.sh
 Note: Similar to most papers, e.g., HPT and TraceVLA, we omitted the `Open Top Drawer and Place Apple` from our evaluation, since the vast majority of policies achieved scores approaching 0 on this task.
 
 ### 🎄 Use Custom Datasets
-TODO
+To train on a custom dataset that is not part of OXE, we recommend converting it into the [RLDS](https://github.com/google-research/rlds) format, as this format directly aligns with our framework.
+
+Once the dataset is converted, you’ll need to modify the following files:
+- [data/oxe/mixtures.py](https://github.com/SpatialVLA/SpatialVLA/blob/main/data/oxe/mixtures.py): Define a new mixture for your dataset in the OXE_NAMED_MIXTURES dictionary.
+- [data/oxe/configs.py](https://github.com/SpatialVLA/SpatialVLA/blob/main/data/oxe/configs.py): Add a new configuration specifying your dataset’s observation and action spaces to the OXE_DATASET_CONFIGS dictionary.
+- [data/oxe/transforms.py](https://github.com/SpatialVLA/SpatialVLA/blob/main/data/oxe/transforms.py): Define a new dataset transform function for your dataset, and add it to the OXE_STANDARDIZATION_TRANSFORMS registry at the bottom of the file.
 
 ## 🤗 Model Zoo
 
