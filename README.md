@@ -29,6 +29,16 @@ Shanghai AI Laboratory, ShanghaiTech, TeleAI -->
 
 ### 🚀 Quick Start
 
+> [!TIP]
+> During the runtime process, a large amount of data is cached in the CPU content. To better manage and allocate content, we have replaced the memory management tool library with `tcmalloc`.
+> 
+> For users with sudo privileges, you can install tcmalloc using `sudo apt-get install google-perftools` and find the `libtcmalloc.so.4` library in `/usr/lib/x86_64-linux-gnu` or `/usr/lib`.
+> 
+> For users without sudo privileges, you can download the suitable version for your operating system from [official repo](https://rpmfind.net/linux/rpm2html/search.php?query=libtcmalloc.so.4()(64bit)) and install it manually.
+> 
+> This step is **not** necessary and can be skipped based on your individual memory requirements.
+
+
 SpatialVLA relies solely on HuggingFace Transformers 🤗, making deployment extremely easy. If your environment supports `transformers >= 4.47.0`, you can directly use the following code to load the model and perform inference. (requires 8.5GB of GPU memory).
 
 ```python
