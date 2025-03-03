@@ -13,7 +13,7 @@ Shanghai AI Laboratory, ShanghaiTech, TeleAI -->
   <br>
 </div> -->
 
-[\[📄Paper\]](https://arxiv.org/pdf/2501.15830)  [\[🔥Project Page\]](https://spatialvla.github.io/) [\[📖 Document\]](#documents) [\[🚀 Quick Start\]](#-quick-start) [\[✅ Performance\]](#-performance-in-simulation-and-real-world) [\[🤗 FAQs\]](#-faqs)
+[\[📄Paper\]](https://arxiv.org/pdf/2501.15830)  [\[🔥Project Page\]](https://spatialvla.github.io/) [\[📖 Document\]](#documents) [\[🚀 Quick Start\]](#-quick-start) [\[🤗 Model Zoo\]](#-model-zoo) [\[✅ Performance\]](#-performance-in-simulation-and-real-world) [\[🙋 FAQs\]](#-faqs)
 
 [\[🔥Pre-train\]](#-pre-train-from-scratch) [\[🚀 Fine-tune\]](#-fine-tune-from-spatialvla) [\[🎄Custom Dataset\]](#-use-custom-datasets)
 
