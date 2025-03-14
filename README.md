@@ -25,6 +25,10 @@ Shanghai AI Laboratory, ShanghaiTech, TeleAI -->
 - `2025/01/29`: We release the [SpatialVLA 1.0](https://huggingface.co/collections/IPEC-COMMUNITY/foundation-vision-language-action-model-6795eb96a9c661f90236acbb). SpatialVLA achieves state-of-the-art performance across a diverse range of evaluations and shows significantly faster inference speed with fewer tokens per action.
 - `2025/02/06`: We release the SimplerEnv evaluation code for SpatialVLA. Please refer to [DelinQu/SimplerEnv-OpenVLA](https://github.com/DelinQu/SimplerEnv-OpenVLA/), and make sure `transformers >= 4.47.0`.
 
+> [!NOTE]
+> 🔥 **An advanced version of SpatialVLA is under development! It leverages [lerobot](https://github.com/huggingface/lerobot) to simplify and accelerate data loading, supports multi-view and state inputs, and features a more streamlined code structure with enhanced performance! Please check out the [lerobot-branch](https://github.com/huggingface/lerobot)**
+
+
 ## Documents
 
 ### 🚀 Quick Start
