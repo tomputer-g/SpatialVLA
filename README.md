@@ -26,7 +26,7 @@ Shanghai AI Laboratory, ShanghaiTech, TeleAI -->
 - `2025/02/06`: We release the SimplerEnv evaluation code for SpatialVLA. Please refer to [DelinQu/SimplerEnv-OpenVLA](https://github.com/DelinQu/SimplerEnv-OpenVLA/), and make sure `transformers >= 4.47.0`.
 
 > [!NOTE]
-> 🔥 **An advanced version of SpatialVLA is under development! It leverages [lerobot](https://github.com/huggingface/lerobot) to simplify and accelerate data loading, supports multi-view and state inputs, and features a more streamlined code structure with enhanced performance! Please check out the [lerobot-branch](https://github.com/huggingface/lerobot)**
+> 🔥 **An advanced version of SpatialVLA is under development! It leverages [lerobot](https://github.com/huggingface/lerobot) to simplify and accelerate data loading, supports multi-view and state inputs, and features a more streamlined code structure with enhanced performance! Please check out the [lerobot-branch](https://github.com/SpatialVLA/SpatialVLA/tree/lerobot)**
 
 
 ## Documents
