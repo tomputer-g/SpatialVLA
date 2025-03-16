@@ -106,7 +106,7 @@ bash scripts/spatialvla_4b_finetune/finetune_lora.sh
 
 
 ### 🌟 **SimplerEnv Benchmark**
-We release the SimplerEnv evaluation code for SpatialVLA based on [DelinQu/SimplerEnv-OpenVLA](https://github.com/DelinQu/SimplerEnv-OpenVLA/). Please install the simpler_env environment by following [DelinQu/SimplerEnv-OpenVLA](https://github.com/DelinQu/SimplerEnv-OpenVLA/) and make sure `transformers >= 4.47.0`. After install all the dependencies, you can perform the evaluation by: 
+We release the SimplerEnv evaluation code for SpatialVLA based on [DelinQu/SimplerEnv-OpenVLA](https://github.com/DelinQu/SimplerEnv-OpenVLA/). Please install the simpler_env environment by following [DelinQu/SimplerEnv-OpenVLA](https://github.com/DelinQu/SimplerEnv-OpenVLA/) and make sure `transformers >= 4.47.0`. Please refer to the Please refer to the [Model Zoo](#-model-zoo) for the model and dataset settings. After install all the dependencies, you can perform the evaluation by: 
 
 ```bash
 # under the project dir of SimplerEnv-OpenVLA/
@@ -127,18 +127,33 @@ Once the dataset is converted, you’ll need to modify the following files:
 <table>
   <tr>
     <th>Model Name</th>
-    <th>VLM Backbone</th>
+    <th>Backbone</th>
     <th>VLA Model</th>
+    <th>Note</th>
   </tr>
   <tr>
     <td>SpatialVLA-4B-224-pt</td>
     <td><a href="https://huggingface.co/google/paligemma2-3b-pt-224">google/paligemma2-3b-pt-224</a></td>
     <td><a href="https://huggingface.co/IPEC-COMMUNITY/spatialvla-4b-224-pt">spatialvla-4b-224-pt</a></td>
+    <td>pretrained on openx and rh20t, TABLE I and II zero-shot, Fig.5 and 7</td>
   </tr>
   <tr>
     <td>SpatialVLA-4B-mix-224-pt</td>
-    <td><a href="https://huggingface.co/google/paligemma2-3b-pt-224">google/paligemma2-3b-pt-224</a></td>
+    <td><a href="https://huggingface.co/IPEC-COMMUNITY/spatialvla-4b-224-pt">spatialvla-4b-224-pt</a></td>
     <td><a href="https://huggingface.co/IPEC-COMMUNITY/spatialvla-4b-mix-224-pt">spatialvla-4b-mix-224-pt</a></td>
+    <td>fine-tuning on the fractal and bridge mixture dataset, Fig.5 and 7</a></td>
+  </tr>
+  <tr>
+    <td>spatialvla-4b-224-sft-bridge</td>
+    <td><a href="https://huggingface.co/IPEC-COMMUNITY/spatialvla-4b-224-pt">spatialvla-4b-224-pt</a></td>
+    <td><a href="https://huggingface.co/IPEC-COMMUNITY/spatialvla-4b-224-sft-bridge">spatialvla-4b-224-sft-bridge</a></td>
+    <td>fine-tuning on the bridge dataset, testing on simple-env widowx-robot, TABLE I fine-tuning</a></td>
+  </tr>
+  <tr>
+    <td>spatialvla-4b-224-sft-bridge</td>
+    <td><a href="https://huggingface.co/IPEC-COMMUNITY/spatialvla-4b-224-pt">spatialvla-4b-224-pt</a></td>
+    <td><a href="https://huggingface.co/IPEC-COMMUNITY/spatialvla-4b-224-sft-fractal">spatialvla-4b-224-sft-fractal</a></td>
+    <td>fine-tuning on the fractal dataset, testing on simple-env google-robot, TABLE II ine-tuning</a></td>
   </tr>
 </table>
 
