@@ -171,3 +171,4 @@ pretrained/*
 outputs
 petrel_client
 huggingface/tmp
+pretrained

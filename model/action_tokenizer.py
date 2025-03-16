@@ -3,17 +3,14 @@ action_tokenizer.py
 
 Extension class; wraps base LLM/VLM tokenizer with logic to discretize and tokenize continuous robot actions.
 """
-from typing import List, Union, Dict, Tuple, Optional
+from typing import List, Union, Dict, Optional
 import numpy as np
 from transformers import PreTrainedTokenizerBase
-from pathlib import Path
-import json
 from scipy.stats import norm
 import torch
 
 ACTION_TOKEN = '<ACTION{:05d}>'
 
-"""Spatial Tokenizer"""
 class ActionTokenizer:
     def __init__(
         self,
@@ -59,7 +56,6 @@ class ActionTokenizer:
     def vocab_size(self) -> int:
         return self._vocab_size
 
-"""Spatial Tokenizer"""
 class TranslationTokenizer:
     def __init__(
         self,
@@ -250,7 +246,7 @@ class GripperTokenzier:
     def vocab_size(self) -> int:
         return self.num_bins
 
-class SphericalCoordinateActionTokenizer:
+class SpatialActionTokenizer:
     range_bins = {
         "translation": {
             "theta_bins": (0.0, np.pi),
@@ -285,7 +281,6 @@ class SphericalCoordinateActionTokenizer:
 
         # set bin policy
         self.bin_policy = bin_policy if bin_policy else self.get_bin_policy(gs_params, self.min_sigma)
-
         self.translation_tokenizer = TranslationTokenizer(
             self.tokenizer,
             self.num_bins["translation"],
@@ -398,13 +393,11 @@ class SphericalCoordinateActionTokenizer:
         embeddings: tensor (S,E)
         """
         from scipy.interpolate import griddata
-        # __import__("ipdb").set_trace()
-        
         new_policy = self.get_bin_policy(gs_params, min_sigma=min_sigma)
         trans_grids0, rot_grids0 = self.get_norm_meshgrid(self.bin_policy)
         trans_grids1, rot_grids1 = self.get_norm_meshgrid(new_policy)
         
-        print("🔥 overwrite bin policy and tokenizer bins ...")
+        print("overwrite bin policy and tokenizer bins ...")
         self.bin_policy = new_policy
         self.min_sigma = min_sigma
         self.translation_tokenizer.set_bins(new_policy["translation"])
@@ -434,5 +427,5 @@ class SphericalCoordinateActionTokenizer:
             device, dtype = embeddings.weight.data.device, embeddings.weight.data.dtype
             embeddings.weight.data[:N] = torch.Tensor(adpt_trans_emb.reshape(-1, E), device=device).to(dtype)
             embeddings.weight.data[N:N+M] = torch.Tensor(adpt_rot_emb.reshape(-1, E), device=device).to(dtype)
-            print("🚀 DONE! adapt spatial embedding to new gaussian distributation finished.")
+            print("DONE! adapt spatial embedding to new gaussian distributation finished.")
             print(embeddings.weight.data)

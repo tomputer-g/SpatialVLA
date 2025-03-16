@@ -13,20 +13,17 @@ from .oxe import OXE_NAMED_MIXTURES, get_oxe_dataset_kwargs_and_weights
 from .utils.data_utils import NormalizationType, save_dataset_statistics
 from .rlds import dataset_statistics, build_interleaved_dataset
 
-# NOTE: the Iterable dataset can'bt be selirized in distributed tranning due to pickle
 class OpenXIterableDataset(IterableDataset):
     """Dataset for supervised fine-tuning."""
 
     def __init__(
         self,
-        ds_name,
         data_root_dir,
         output_dir,
         data_mix,
         image_size=224,
         max_length=1024,
         is_train=True,
-        data_augment=False,
         shuffle_buffer_size=1000_000,
         tsfm_thread_muti=1,
         read_thread_muti=1,
@@ -35,15 +32,11 @@ class OpenXIterableDataset(IterableDataset):
         action_forward_steps=0,
         use_raw_dataloader=False,
         fix_raw_length=None,
-        statistic_exclude="no_exclude",
-        normalized_statistic_path=None,
         vla_processor=None,
     ):
         super(OpenXIterableDataset, self).__init__()
-        self.ds_name = ds_name
         self.data_root_dir = data_root_dir
         self.data_mix = data_mix
-        self.statistic_exclude = statistic_exclude
         self.use_raw_dataloader = use_raw_dataloader
         self.vla_processor = vla_processor
         self.image_size = image_size
@@ -56,7 +49,6 @@ class OpenXIterableDataset(IterableDataset):
         if self.data_mix in OXE_NAMED_MIXTURES:
             mixture_spec = OXE_NAMED_MIXTURES[self.data_mix]
         else:
-            # Assume that passed "mixture" name is actually a single dataset -- create single-dataset "mix"
             mixture_spec = [(os.path.join(self.data_mix, "1.0.0"), 1.0)]
         per_dataset_kwargs, weights = get_oxe_dataset_kwargs_and_weights(
             self.data_root_dir,
@@ -88,32 +80,27 @@ class OpenXIterableDataset(IterableDataset):
             traj_read_threads=len(mixture_spec) * read_thread_muti,
             train=self.is_train,
             shuffle_seed=3407 * self.current_rank,
-            # shuffle_seed=42 * self.current_rank,
+        )        
+        self.rlds_config["frame_transform_kwargs"].update(
+            {
+                "image_augment_kwargs": dict(
+                    random_resized_crop=dict(scale=[0.9, 0.9], ratio=[1.0, 1.0]),
+                    random_brightness=[0.2],
+                    random_contrast=[0.8, 1.2],
+                    random_saturation=[0.8, 1.2],
+                    random_hue=[0.05],
+                    augment_order=[
+                        "random_resized_crop",
+                        "random_brightness",
+                        "random_contrast",
+                        "random_saturation",
+                        "random_hue",
+                    ],
+                )
+            }
         )
-
-        if data_augment:
-            self.rlds_config["frame_transform_kwargs"].update(
-                {
-                    "image_augment_kwargs": dict(
-                        random_resized_crop=dict(scale=[0.9, 0.9], ratio=[1.0, 1.0]),
-                        random_brightness=[0.2],
-                        random_contrast=[0.8, 1.2],
-                        random_saturation=[0.8, 1.2],
-                        random_hue=[0.05],
-                        augment_order=[
-                            "random_resized_crop",
-                            "random_brightness",
-                            "random_contrast",
-                            "random_saturation",
-                            "random_hue",
-                        ],
-                    )
-                }
-            )
-
-        print("*** make rlds dataset...")
         self.rlds_dataset = None
-        expected_length, self.dataset_statistics, self.sample_weights = dataset_statistics(**self.rlds_config)
+        expected_length, self.ds_stats, self.sample_weights = dataset_statistics(**self.rlds_config)
         self.raw_length = expected_length * self.dataset_num
 
         # NOTE: in staget 2 ptraining, we use much less data, thus the resume'll stop immediately
@@ -123,9 +110,7 @@ class OpenXIterableDataset(IterableDataset):
             print(f"[Dataset] set a fixed dataset length {fix_raw_length} avoids the unexceptable traing interrupt!")
 
         if self.current_rank == 0:
-            statistic = save_dataset_statistics(self.dataset_statistics, Path(output_dir) / "dataset_statistics.json")
-
-        self.normalized_statistic_path = normalized_statistic_path
+            save_dataset_statistics(self.ds_stats, Path(output_dir) / "ds_stats.json")
 
     def __len__(self):
         if self.use_raw_dataloader:
@@ -170,9 +155,7 @@ class OpenXIterableDataset(IterableDataset):
 
     def __iter__(self):
         if self.rlds_dataset is None:
-            self.rlds_dataset = build_interleaved_dataset(
-                weights=self.sample_weights, dataset_statistics=self.dataset_statistics, **self.rlds_config
-            ).as_numpy_iterator()
+            self.rlds_dataset = build_interleaved_dataset(weights=self.sample_weights, dataset_statistics=self.ds_stats, **self.rlds_config).as_numpy_iterator()
             if torch.utils.data.get_worker_info() is not None:
                 worker_total_num = torch.utils.data.get_worker_info().num_workers
                 worker_id = torch.utils.data.get_worker_info().id
@@ -183,15 +166,6 @@ class OpenXIterableDataset(IterableDataset):
 
         for i, data_item in enumerate(self.rlds_dataset):
             ret = self.multi_modal_get_item(data_item)
-            
-            # print(f"rank: {self.current_rank}, \
-            #         worker: {worker_id},  \
-            #         iter_idx: {i},\
-            #         dataset: {data_item['dataset_name']}, \
-            #         traj_idx: {data_item['traj_index']}, \
-            #         timestep: {data_item['observation']['timestep']}"
-            # )
-
             if i < len(self):
                 yield ret
             else:
@@ -204,12 +178,10 @@ def build_datasets(
     vla_processor=None,
 ) -> IterableDataset:
     train_dataset = OpenXIterableDataset(
-        data_args.data_mix,
         data_args.data_root_dir,
         output_dir,
         data_args.data_mix,
         is_train=True,
-        image_size=data_args.force_image_size,
         max_length=data_args.max_seq_length,
         shuffle_buffer_size=data_args.shuffle_buffer_size,
         tsfm_thread_muti=data_args.tsfm_thread_muti,
@@ -219,34 +191,7 @@ def build_datasets(
         action_forward_steps=data_args.action_forward_steps,
         use_raw_dataloader=data_args.use_raw_dataloader,
         fix_raw_length=data_args.fix_raw_length,
-        statistic_exclude=data_args.statistic_exclude,
-        normalized_statistic_path=data_args.normalized_statistic_path,
-        data_augment=data_args.data_augment,
         vla_processor=vla_processor,
     )
-    if data_args.train_only:
-        eval_dataset = None
-    else:
-        eval_dataset = OpenXIterableDataset(
-            data_args.data_mix,
-            data_args.data_root_dir,
-            output_dir,
-            data_args.data_mix,
-            is_train=False,
-            image_size=data_args.force_image_size,
-            max_length=data_args.max_seq_length,
-            normalize_type=data_args.normalize_type,
-            shuffle_buffer_size=data_args.shuffle_buffer_size,
-            tsfm_thread_muti=data_args.tsfm_thread_muti,
-            read_thread_muti=data_args.read_thread_muti,
-            obs_backward_steps=data_args.obs_backward_steps,
-            obs_backward_delta=data_args.obs_backward_delta,
-            action_forward_steps=data_args.action_forward_steps,
-            use_raw_dataloader=data_args.use_raw_dataloader,
-            statistic_exclude=data_args.statistic_exclude,
-            normalized_statistic_path=data_args.normalized_statistic_path,
-            data_augment=data_args.data_augment,
-            vla_processor=vla_processor,
-        )
-
+    eval_dataset = None
     return train_dataset, eval_dataset

@@ -13,7 +13,7 @@ Shanghai AI Laboratory, ShanghaiTech, TeleAI -->
   <br>
 </div> -->
 
-[\[📄Paper\]](https://arxiv.org/pdf/2501.15830)  [\[🔥Project Page\]](https://spatialvla.github.io/) [\[📖 Document\]](#documents) [\[🚀 Quick Start\]](#-quick-start) [\[🤗 Model Zoo\]](#-model-zoo) [\[✅ Performance\]](#-performance-in-simulation-and-real-world) [\[🙋 FAQs\]](#-faqs)
+[\[📄Paper\]](https://arxiv.org/pdf/2501.15830)  [\[🔥Project Page\]](https://spatialvla.github.io/) [\[📖 Document\]](#documents) [\[🚀 Quick Start\]](#-quick-start) [\[🤗 Model Zoo\]](https://huggingface.co/collections/IPEC-COMMUNITY/foundation-vision-language-action-model-6795eb96a9c661f90236acbb) [\[✅ Performance\]](#-performance-in-simulation-and-real-world) [\[🙋 FAQs\]](#-faqs)
 
 [\[🔥Pre-train\]](#-pre-train-from-scratch) [\[🚀 Fine-tune\]](#-fine-tune-from-spatialvla) [\[🎄Custom Dataset\]](#-use-custom-datasets)
 
@@ -24,6 +24,7 @@ Shanghai AI Laboratory, ShanghaiTech, TeleAI -->
 ## News 🚀🚀🚀
 - `2025/01/29`: We release the [SpatialVLA 1.0](https://huggingface.co/collections/IPEC-COMMUNITY/foundation-vision-language-action-model-6795eb96a9c661f90236acbb). SpatialVLA achieves state-of-the-art performance across a diverse range of evaluations and shows significantly faster inference speed with fewer tokens per action.
 - `2025/02/06`: We release the SimplerEnv evaluation code for SpatialVLA. Please refer to [DelinQu/SimplerEnv-OpenVLA](https://github.com/DelinQu/SimplerEnv-OpenVLA/), and make sure `transformers >= 4.47.0`.
+- `2025/03/16`: Simplify the code structure and fix the dependencies conflict in issue [#19](https://github.com/SpatialVLA/SpatialVLA/issues/19).
 
 > [!NOTE]
 > 🔥 **An advanced version of SpatialVLA is under development! It leverages [lerobot](https://github.com/huggingface/lerobot) to simplify and accelerate data loading, supports multi-view and state inputs, and features a more streamlined code structure with enhanced performance! Please check out the [lerobot-branch](https://github.com/SpatialVLA/SpatialVLA/tree/lerobot)**
@@ -66,6 +67,7 @@ print(actions)
 If you want to use the model for fine-tuning or pre-training, you need to install the required packages and download the model from the Hugging Face model hub. The VLM backbone of SpatialVLA is PaLiGemma2, which requires transformers >= 4.47.0. Hence, create a Python environment with Python >= 3.10.
 
 ```bash
+git clone git@github.com:SpatialVLA/SpatialVLA.git --depth 1
 conda create -n spatialvla python=3.10
 conda activate spatialvla
 ```
@@ -77,9 +79,12 @@ pip install -r requirements.txt
 ```
 
 ### 🌟 **Pre-train from Scratch**
-SpatialVLA is pre-trained with 1.1 Million real-robot demonstrations from the OXE and RH20T dataset on a cluster of 64 A100 GPUs for abut 10 days, using a batch size of 2048. You can pre-train the model from scratch using the following command.
+SpatialVLA is pre-trained with 1.1 Million real-robot demonstrations from the OXE and RH20T dataset on a cluster of 64 A100 GPUs for abut 10 days, using a batch size of 2048. You can pre-train the model from scratch using the following command. Before running the script, please download the [Open X-Embodiment](https://robotics-transformer-x.github.io) dataset and [RH20T](https://rh20t.github.io/#download) dataset (optional). Please also filter the dataset by following the instructions in the [moojink/rlds_dataset_builder](https://github.com/moojink/rlds_dataset_builder) and [spatialvla/rh20t](https://github.com/SpatialVLA/rh20t) to filter the dataset or convert it to the RLDS format.
 
 ```bash
+# download paligemma2 and zoe depth
+bash scripts/hf_download.sh
+
 # torchrun
 bash scripts/spatialvla_4b_pretrain/torchrun_pretrain.sh
 
@@ -89,8 +94,7 @@ bash scripts/spatialvla_4b_pretrain/slurm_pretrain.sh
 
 ### 🌟 **Fine-tune from SpatialVLA**
 
-Most of our fine-tuning experiments are conducted using LoRA on 4 or 8 A100 GPUs.
-You can use the following scripts for full-parameter or LoRA fine-tuning. For real-world experiments with small datasets, we prefer using LoRA for fine-tuning.
+Most of our fine-tuning experiments are conducted using LoRA on 4 or 8 A100 GPUs. You can use the following scripts for full-parameter or LoRA fine-tuning. For real-world experiments with small datasets, we prefer using LoRA for fine-tuning.
 
 ```bash
 # full fine-tuning

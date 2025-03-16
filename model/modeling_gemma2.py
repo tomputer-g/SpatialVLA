@@ -1,4 +1,5 @@
-# custom gemma2 to support flash_attention_2
+# custom gemma2 to support flash_attention_2, 
+# source from https://github.com/huggingface/transformers/blob/v4.47.0/src/transformers/models/gemma2/modeling_gemma2.py
 # coding=utf-8
 # Copyright 2024 Google Inc. HuggingFace Inc. team. All rights reserved.
 #
@@ -205,10 +206,7 @@ def flash_attention_forward(
 ) -> Tuple[torch.Tensor, None]:
     # NOTE: None mask cause un defined https://github.com/huggingface/transformers/blob/c8c8dffbe45ebef0a8dba4a51024e5e5e498596b/src/transformers/models/gemma2/modeling_gemma2.py#L211
     seq_len = query.shape[2]
-    # print(f"🔥 query {query.shape}, key {key.shape}, value: {value.shape}")
     if mask is not None:
-        # print(f"🔥 mask {mask.shape}")
-        # seq_len = mask.shape[1]
         query = query[:, :, :seq_len]
         value = value[:, :, :seq_len]
 

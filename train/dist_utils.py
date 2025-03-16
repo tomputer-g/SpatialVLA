@@ -10,7 +10,6 @@ from torch import distributed as dist
 
 timeout = timedelta(minutes=60)
 
-
 def _find_free_port():
     # Copied from https://github.com/facebookresearch/detectron2/blob/main/detectron2/engine/launch.py # noqa: E501
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -18,9 +17,7 @@ def _find_free_port():
     sock.bind(('', 0))
     port = sock.getsockname()[1]
     sock.close()
-    # NOTE: there is still a chance the port could be taken by other processes.
     return port
-
 
 def _is_free_port(port):
     ips = socket.gethostbyname_ex(socket.gethostname())[-1]
@@ -41,21 +38,17 @@ def init_dist(launcher, backend='nccl', **kwargs):
     else:
         raise ValueError(f'Invalid launcher type: {launcher}')
 
-
 def _init_dist_pytorch(backend, **kwargs):
     # TODO: use local_rank instead of rank % num_gpus
     rank = int(os.environ['RANK'])
     num_gpus = torch.cuda.device_count()
     torch.cuda.set_device(rank % num_gpus)
-    # dist.init_process_group(backend=backend, **kwargs)
     deepspeed.init_distributed(dist_backend=backend)
-
 
 def _init_dist_mpi(backend, **kwargs):
     local_rank = int(os.environ['OMPI_COMM_WORLD_LOCAL_RANK'])
     torch.cuda.set_device(local_rank)
     if 'MASTER_PORT' not in os.environ:
-        # 29500 is torch.distributed default port
         os.environ['MASTER_PORT'] = '29500'
     if 'MASTER_ADDR' not in os.environ:
         raise KeyError('The environment variable MASTER_ADDR is not set')
@@ -101,8 +94,6 @@ def _init_dist_slurm(backend, port=None):
     os.environ['LOCAL_RANK'] = str(proc_id % num_gpus)
     os.environ['RANK'] = str(proc_id)
 
-    print(f"🔥 SLURM_PROCID: {os.environ['SLURM_PROCID']}, SLURM_NTASKS {os.environ['SLURM_NTASKS']}, SLURM_NODELIST {os.environ['SLURM_NODELIST']}, MASTER_PORT {os.environ['MASTER_PORT']}, MASTER_ADDR {os.environ['MASTER_ADDR']}, WORLD_SIZE {os.environ['WORLD_SIZE']}, LOCAL_RANK {os.environ['LOCAL_RANK']}, RANK {os.environ['RANK']}")
+    print(f"SLURM_PROCID: {os.environ['SLURM_PROCID']}, SLURM_NTASKS {os.environ['SLURM_NTASKS']}, SLURM_NODELIST {os.environ['SLURM_NODELIST']}, MASTER_PORT {os.environ['MASTER_PORT']}, MASTER_ADDR {os.environ['MASTER_ADDR']}, WORLD_SIZE {os.environ['WORLD_SIZE']}, LOCAL_RANK {os.environ['LOCAL_RANK']}, RANK {os.environ['RANK']}")
     # dist.init_process_group(backend=backend, timeout=timeout)
-    print(f"🔥 init distributed ....")
     deepspeed.init_distributed(dist_backend=backend)
-    print(f"🔥 init finished! ....")

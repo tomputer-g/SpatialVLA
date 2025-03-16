@@ -17,149 +17,108 @@
 from dataclasses import dataclass
 from typing import List, Optional, Tuple, Union
 
+import os
 import torch
 import torch.utils.checkpoint
 from torch import nn
 from torch.linalg import inv
-import torchvision.transforms.functional as F
-
-import os
+import torchvision.transforms.functional as TF
+import torch.nn.functional as F
 from transformers.cache_utils import Cache, HybridCache, StaticCache
 from transformers.generation import GenerationMixin
 from transformers.modeling_utils import PreTrainedModel, PretrainedConfig
 from transformers.utils import (
     ModelOutput,
-    add_start_docstrings,
-    add_start_docstrings_to_model_forward,
-    is_flash_attn_2_available,
     logging,
-    replace_return_docstrings,
 )
 from .configuration_spatialvla import SpatialVLAConfig
-from .modeling_ego3d import Ego3DPositionEmbeddingMLP, process_zoe
 from .modeling_gemma2 import Gemma2ForCausalLM
+from transformers import AutoModel, ZoeDepthForDepthEstimation
 
-if is_flash_attn_2_available():
-    from flash_attn.bert_padding import index_first_axis, pad_input, unpad_input  # noqa
-
-from transformers import AutoModel, AutoModelForCausalLM, ZoeDepthForDepthEstimation
-
+SIGLIP_MEAN, SIGLIP_STD = (0.5, 0.5, 0.5), (0.5, 0.5, 0.5)
+ZOE_MEAN, ZOE_STD = (0.5, 0.5, 0.5), (0.5, 0.5, 0.5)
 
 logger = logging.get_logger(__name__)
 
-_CONFIG_FOR_DOC = "PaliGemmaConfig"
-
-# constant
-SIGLIP_MEAN, SIGLIP_STD = (0.5, 0.5, 0.5), (0.5, 0.5, 0.5)
-
-# Adapted from transformers.models.llama.modeling_llama.LlamaModel._prepare_4d_causal_attention_mask_with_cache_position
-# But Paligemma has no causal mask on prefix
-def _prepare_4d_causal_attention_mask_with_cache_position(
-    attention_mask: torch.Tensor,
-    sequence_length: int,
-    target_length: int,
-    dtype: torch.dtype,
-    device: torch.device,
-    min_dtype: float,
-    cache_position: torch.Tensor,
-    batch_size: int,
-    is_training: bool = False,
-    token_type_ids: torch.Tensor = None,
-    **kwargs,
-):
+class Ego3DPositionEmbeddingMLP(nn.Module):
+    """Absolute pos embedding, learned.
+    https://github.com/kwea123/nerf_pl/blob/52aeb387da64a9ad9a0f914ea9b049ffc598b20c/models/nerf.py#L4
     """
-    Creates a causal 4D mask of shape `(batch_size, 1, query_length, key_value_length)` from a 2D mask of shape
-    `(batch_size, key_value_length)`, or if the input `attention_mask` is already 4D, do nothing.
 
-    Args:
-        attention_mask (`torch.Tensor`):
-            A 2D attention mask of shape `(batch_size, key_value_length)` or a 4D attention mask of shape `(batch_size, 1, query_length, key_value_length)`.
-        sequence_length (`int`):
-            The sequence length being processed.
-        target_length (`int`):
-            The target length: when generating with static cache, the mask should be as long as the static cache, to account for the 0 padding, the part of the cache that is not filled yet.
-        dtype (`torch.dtype`):
-            The dtype to use for the 4D attention mask.
-        device (`torch.device`):
-            The device to plcae the 4D attention mask on.
-        min_dtype (`float`):
-            The minimum value representable with the dtype `dtype`.
-        cache_position (`torch.Tensor`):
-            Indices depicting the position of the input sequence tokens in the sequence.
-        batch_size (`torch.Tensor`):
-            Batch size.
-        is_training (`bool`):
-            Whether the model is in training mode or in inference. The condition is checked by presence/absence of `token_type_ids/labels`
-    """
-    if attention_mask is not None and attention_mask.dim() == 4:
-        # In this case we assume that the mask comes already in inverted form and requires no inversion or slicing.
-        causal_mask = attention_mask
-    else:
-        causal_mask = torch.full((sequence_length, target_length), fill_value=min_dtype, dtype=dtype, device=device)
-        # Causal diagonal mask only if training, otherwise attend to the whole prefix. Training-specific attn for prefix is handled below
-        if sequence_length != 1:
-            if is_training:
-                causal_mask = torch.triu(causal_mask, diagonal=1)
-            else:
-                causal_mask[:, :sequence_length] = 0.0
+    def __init__(self, in_channels=3, num_pos_feats=768, n_freqs=8, logscale=True):
+        super(Ego3DPositionEmbeddingMLP, self).__init__()
+        self.n_freqs = n_freqs
+        self.freq_out_channels = in_channels * (2 * n_freqs + 1)
+        if logscale:
+            freq_bands = 2 ** torch.linspace(0, n_freqs - 1, n_freqs)
+        else:
+            freq_bands = torch.linspace(1, 2 ** (n_freqs - 1), n_freqs)
+        
+        center = torch.tensor([0., 0., 2.]).repeat(in_channels // 3)
+        self.register_buffer("freq_bands", freq_bands, persistent=False)
+        self.register_buffer("center", center, persistent=False)
 
-        causal_mask *= torch.arange(target_length, device=cache_position.device) > cache_position.reshape(-1, 1)
-        causal_mask = causal_mask[None, None, :, :].expand(batch_size, 1, -1, -1)
-        if attention_mask is not None:
-            causal_mask = causal_mask.clone()  # copy to contiguous memory for in-place edit
-            mask_length = attention_mask.shape[-1]
-            padding_mask = causal_mask[:, :, :, :mask_length] + attention_mask[:, None, None, :].to(causal_mask.device)
-            padding_mask = padding_mask == 0
-            causal_mask[:, :, :, :mask_length] = causal_mask[:, :, :, :mask_length].masked_fill(
-                padding_mask, min_dtype
-            )
-            # we are training thus we need to create a full mask on the image + prefix but causal on suffix
-            if is_training:
-                causal_mask[:, :, :, :mask_length] = causal_mask[:, :, :, :mask_length].masked_fill(
-                    token_type_ids[:, None, None, :].to(causal_mask.device) == 0, 0
-                )
-    return causal_mask
+        self.position_embedding_head = nn.Sequential(
+            nn.Linear(self.freq_out_channels, num_pos_feats),
+            nn.LayerNorm(num_pos_feats),
+            nn.ReLU(),
+            nn.Linear(num_pos_feats, num_pos_feats),
+        )
+        self._reset_parameters()
 
+    def _reset_parameters(self):
+        """init with small weights to maintain stable training."""
+        for p in self.parameters():
+            if p.dim() > 1:
+                nn.init.xavier_uniform_(p, gain=0.01)
+
+    @torch.no_grad()
+    def frequency_encoding(self, xyz):
+        """
+        Embeds x to (x, sin(2^k x), cos(2^k x), ...)
+        Different from the paper, "x" is also in the output
+        See https://github.com/bmild/nerf/issues/12
+        x \in [-2, 2]
+        y \in [-2, 2]
+        z \in [0., 4]
+        Inputs:
+            x: (b n m)
+        Outputs:
+            out: (b n o)
+        """
+        xyz_n = ((xyz - self.center) / 2.0).to(self.freq_bands.dtype)
+        xyz_feq = xyz_n.unsqueeze(-1) * self.freq_bands  # (b n m 1)
+        sin_xyz, cos_xyz = torch.sin(xyz_feq), torch.cos(xyz_feq)  # (b n m nf)
+        encoding = torch.cat([xyz_n.unsqueeze(-1), sin_xyz, cos_xyz], -1).reshape(*xyz.shape[:2], -1)
+        return encoding
+
+    def forward(self, xyz):
+        """Forward pass, xyz is (B, N, 3or6), output (B, N, F)."""
+        freq_encoding = self.frequency_encoding(xyz)
+        position_embedding = self.position_embedding_head(freq_encoding)
+        return position_embedding
+
+def process_zoe(pixel_values, pad_mode="reflect", output_size=(384, 512)):
+    """https://github.com/huggingface/transformers/blob/v4.45.2/src/transformers/models/zoedepth/image_processing_zoedepth.py"""
+    # h, w = images.shape[-2:]
+    # pad
+    ph, pw = 31, 31  # int((h / 2)**0.5 * 3), int((w / 2)**0.5 * 3) # 32, 31
+    images = F.pad(pixel_values, (pw, pw, ph, ph), mode=pad_mode)
+    # resize
+    size = (384, 384)  # get_resize_output_image_size
+    images = F.interpolate(images, size=size, mode="bicubic", align_corners=True)
+    # zoe: padding -> resize -> nomalize. we follow `nomalize -> padding -> resize` from siglip
+    images = TF.normalize(images, mean=ZOE_MEAN, std=ZOE_STD)
+    return images, ph, pw
 
 @dataclass
 class SpatialVLACausalLMOutputWithPast(ModelOutput):
-    """
-    Base class for PaliGemmacausal language model (or autoregressive) outputs.
-
-    Args:
-        loss (`torch.FloatTensor` of shape `(1,)`, *optional*, returned when `labels` is provided):
-            Language modeling loss (for next-token prediction).
-        logits (`torch.FloatTensor` of shape `(batch_size, sequence_length, config.text_config.vocab_size)`):
-            Prediction scores of the language modeling head (scores for each vocabulary token before SoftMax).
-        past_key_values (`tuple(tuple(torch.FloatTensor))`, *optional*, returned when `use_cache=True` is passed or when `config.use_cache=True`):
-            Tuple of `tuple(torch.FloatTensor)` of length `config.n_layers`, with each tuple having 2 tensors of shape
-            `(batch_size, num_heads, sequence_length, embed_size_per_head)`)
-
-            Contains pre-computed hidden-states (key and values in the self-attention blocks) that can be used (see
-            `past_key_values` input) to speed up sequential decoding.
-        hidden_states (`tuple(torch.FloatTensor)`, *optional*, returned when `output_hidden_states=True` is passed or when `config.output_hidden_states=True`):
-            Tuple of `torch.FloatTensor` (one for the output of the embeddings, if the model has an embedding layer, +
-            one for the output of each layer) of shape `(batch_size, sequence_length, hidden_size)`.
-
-            Hidden-states of the model at the output of each layer plus the optional initial embedding outputs.
-        attentions (`tuple(torch.FloatTensor)`, *optional*, returned when `output_attentions=True` is passed or when `config.output_attentions=True`):
-            Tuple of `torch.FloatTensor` (one for each layer) of shape `(batch_size, num_heads, sequence_length,
-            sequence_length)`.
-
-            Attentions weights after the attention softmax, used to compute the weighted average in the self-attention
-            heads.
-        image_hidden_states (`torch.FloatTensor`, *optional*):
-            A `torch.FloatTensor` of size `(batch_size, num_images, sequence_length, hidden_size)`.
-            image_hidden_states of the model produced by the vision encoder after projecting last hidden state.
-    """
-
     loss: Optional[torch.FloatTensor] = None
     logits: torch.FloatTensor = None
     past_key_values: Optional[Union[List[torch.FloatTensor], Cache]] = None
     hidden_states: Optional[Tuple[torch.FloatTensor]] = None
     attentions: Optional[Tuple[torch.FloatTensor]] = None
     image_hidden_states: Optional[torch.FloatTensor] = None
-
 
 class SpatialVLAMultiModalProjector(nn.Module):
     def __init__(self, config: SpatialVLAConfig):
@@ -168,31 +127,8 @@ class SpatialVLAMultiModalProjector(nn.Module):
 
     def forward(self, image_features):
         hidden_states = self.linear(image_features)
-
         return hidden_states
 
-
-PALIGEMMA_START_DOCSTRING = r"""
-    This model inherits from [`PreTrainedModel`]. Check the superclass documentation for the generic methods the
-    library implements for all its model (such as downloading or saving, resizing the input embeddings, pruning heads
-    etc.)
-
-    This model is also a PyTorch [torch.nn.Module](https://pytorch.org/docs/stable/nn.html#torch.nn.Module) subclass.
-    Use it as a regular PyTorch Module and refer to the PyTorch documentation for all matter related to general usage
-    and behavior.
-
-    Parameters:
-        config ([`PaliGemmaConfig`] or [`PaliGemmaVisionConfig`]):
-            Model configuration class with all the parameters of the model. Initializing with a config file does not
-            load the weights associated with the model, only the configuration. Check out the
-            [`~PreTrainedModel.from_pretrained`] method to load the model weights.
-"""
-
-
-@add_start_docstrings(
-    "The bare LLaMA Model outputting raw hidden-states without any specific head on top.",
-    PALIGEMMA_START_DOCSTRING,
-)
 class SpatialVLAPreTrainedModel(PreTrainedModel):
     config_class = SpatialVLAConfig
     base_model_prefix = "model"
@@ -207,8 +143,6 @@ class SpatialVLAPreTrainedModel(PreTrainedModel):
     _supports_sdpa = True
 
     def _init_weights(self, module):
-        # important: this ported version of PaliGemmaisn't meant for training from scratch - only
-        # inference and fine-tuning
         std = (
             self.config.initializer_range
             if hasattr(self.config, "initializer_range")
@@ -227,99 +161,20 @@ class SpatialVLAPreTrainedModel(PreTrainedModel):
             if module.padding_idx is not None:
                 module.weight.data[module.padding_idx].zero_()
 
-
-PALIGEMMA_INPUTS_DOCSTRING = r"""
-    Args:
-        input_ids (`torch.LongTensor` of shape `(batch_size, sequence_length)`):
-            Indices of input sequence tokens in the vocabulary. Padding will be ignored by default should you provide
-            it.
-
-            Indices can be obtained using [`AutoTokenizer`]. See [`PreTrainedTokenizer.encode`] and
-            [`PreTrainedTokenizer.__call__`] for details.
-
-            [What are input IDs?](../glossary#input-ids)
-        pixel_values (`torch.FloatTensor` of shape `(batch_size, num_channels, image_size, image_size)):
-            The tensors corresponding to the input images. Pixel values can be obtained using
-            [`AutoImageProcessor`]. See [`SiglipImageProcessor.__call__`] for details ([]`PaliGemmaProcessor`] uses
-            [`SiglipImageProcessor`] for processing images).
-        attention_mask (`torch.Tensor` of shape `(batch_size, sequence_length)`, *optional*):
-            Mask to avoid performing attention on padding token indices. Mask values selected in `[0, 1]`:
-
-            - 1 for tokens that are **not masked**,
-            - 0 for tokens that are **masked**.
-
-            [What are attention masks?](../glossary#attention-mask)
-
-            Indices can be obtained using [`AutoTokenizer`]. See [`PreTrainedTokenizer.encode`] and
-            [`PreTrainedTokenizer.__call__`] for details.
-
-            If `past_key_values` is used, optionally only the last `decoder_input_ids` have to be input (see
-            `past_key_values`).
-
-            If you want to change padding behavior, you should read [`modeling_opt._prepare_decoder_attention_mask`]
-            and modify to your needs. See diagram 1 in [the paper](https://arxiv.org/abs/1910.13461) for more
-            information on the default strategy.
-
-            - 1 indicates the head is **not masked**,
-            - 0 indicates the head is **masked**.
-        position_ids (`torch.LongTensor` of shape `(batch_size, sequence_length)`, *optional*):
-            Indices of positions of each input sequence tokens in the position embeddings. Selected in the range `[0,
-            config.n_positions - 1]`. [What are position IDs?](../glossary#position-ids)
-        past_key_values (`tuple(tuple(torch.FloatTensor))`, *optional*, returned when `use_cache=True` is passed or when `config.use_cache=True`):
-            Tuple of `tuple(torch.FloatTensor)` of length `config.n_layers`, with each tuple having 2 tensors of shape
-            `(batch_size, num_heads, sequence_length, embed_size_per_head)`) and 2 additional tensors of shape
-            `(batch_size, num_heads, encoder_sequence_length, embed_size_per_head)`.
-
-            Contains pre-computed hidden-states (key and values in the self-attention blocks and in the cross-attention
-            blocks) that can be used (see `past_key_values` input) to speed up sequential decoding.
-
-            If `past_key_values` are used, the user can optionally input only the last `decoder_input_ids` (those that
-            don't have their past key value states given to this model) of shape `(batch_size, 1)` instead of all
-            `decoder_input_ids` of shape `(batch_size, sequence_length)`.
-        inputs_embeds (`torch.FloatTensor` of shape `(batch_size, sequence_length, hidden_size)`, *optional*):
-            Optionally, instead of passing `input_ids` you can choose to directly pass an embedded representation. This
-            is useful if you want more control over how to convert `input_ids` indices into associated vectors than the
-            model's internal embedding lookup matrix.
-        use_cache (`bool`, *optional*):
-            If set to `True`, `past_key_values` key value states are returned and can be used to speed up decoding (see
-            `past_key_values`).
-        output_attentions (`bool`, *optional*):
-            Whether or not to return the attentions tensors of all attention layers. See `attentions` under returned
-            tensors for more detail.
-        output_hidden_states (`bool`, *optional*):
-            Whether or not to return the hidden states of all layers. See `hidden_states` under returned tensors for
-            more detail.
-        return_dict (`bool`, *optional*):
-            Whether or not to return a [`~utils.ModelOutput`] instead of a plain tuple.
-        cache_position (`torch.LongTensor` of shape `(sequence_length)`, *optional*):
-            Indices depicting the position of the input sequence tokens in the sequence. Contrarily to `position_ids`,
-            this tensor is not affected by padding. It is used to update the cache in the correct position and to infer
-            the complete sequence length.
-"""
-
-
-@add_start_docstrings(
-    """The PALIGEMMA model which consists of a vision backbone and a language model.""",
-    PALIGEMMA_START_DOCSTRING,
-)
 class SpatialVLAForConditionalGeneration(SpatialVLAPreTrainedModel, GenerationMixin):
     def __init__(self, config: SpatialVLAConfig, vision_model=None, vision_zoe_model=None, projector_model=None, language_model=None):
         super().__init__(config)
-        # vision model
+
         self.vision_tower = vision_model or AutoModel.from_config(config=config.vision_config)
-        # projector
         self.multi_modal_projector = projector_model or SpatialVLAMultiModalProjector(config)
-        # language model
         self.vocab_size = config.text_config.vocab_size
         if language_model is None:
-            language_model = Gemma2ForCausalLM(config=config.text_config) if config.text_config.model_type == "gemma2" else AutoModelForCausalLM.from_config(config=config.text_config)
-        # set tile key
+            language_model = Gemma2ForCausalLM(config=config.text_config)
         if language_model._tied_weights_keys is not None:
             self._tied_weights_keys = [f"language_model.{k}" for k in language_model._tied_weights_keys]
         self.language_model = language_model
 
         if config.use_vision_zoe:
-            # zoe model
             self.vision_zoe_model = vision_zoe_model or ZoeDepthForDepthEstimation(config.vision_zoe_config)
             self.position_embedding_3d = Ego3DPositionEmbeddingMLP(
                 config.ego3d_patch_reso**2 * 3, num_pos_feats=config.vision_config.hidden_size, n_freqs=config.n_freqs
@@ -331,15 +186,12 @@ class SpatialVLAForConditionalGeneration(SpatialVLAPreTrainedModel, GenerationMi
             uv_h = torch.stack([x, y, torch.ones_like(x)], dim=0).reshape(3, -1)  # (3 hw)
             self.register_buffer("uv_h", uv_h, persistent=False)
 
-        # NOTE: add shared addtional spatial token embeddings for <ACTION> <IMG>
+        # shared spatial embeddings for <ACTION> <IMG>
         if config.use_spatial_token:
             self.spatial_embed_tokens = nn.Embedding(self.config.spatial_token_num, config.text_config.hidden_size)
         else:
             self.spatial_embed_tokens = None
-
         self.pad_token_id = self.config.pad_token_id if self.config.pad_token_id is not None else -1
-        # self.post_init() # BUG: cause from_pretrained failed!
-        # self.position_embedding_3d._reset_parameters()
 
 
     def backproject_patch(self, K: torch.Tensor, depth: torch.Tensor, patch_size=14, reso=2) -> torch.Tensor:
@@ -348,44 +200,48 @@ class SpatialVLAForConditionalGeneration(SpatialVLAPreTrainedModel, GenerationMi
         Args:
             K: camera intrinsic matrix (b 3 3)
             depth: depth map (b 1 h w)
-            pixel_offset: offset to the pixel coordinate
+            patch_size: patch size for siglip
+            reso: reso^2 -> sample points in each patch
+        patch sz = 14  ......          
+        ┌────────┬────────┐       
+        │ ─    ─ │ ─    ─ │       
+        │ points │        ├─ ─ ─ 
+        │ ─    ─ │ ─    ─ │       
+        ├────────┼────────┤       
+        │ ─    ─ │ ─    ─ │       
+        │        │        │       
+        │ ─    ─ │ ─    ─ │       
+        └────────┴────────┘       
+        reso=2───►points=4
+            │                    
+            │                        
         """
-        # __import__("ipdb").set_trace()
         b, c, h, w = depth.shape
         hp, wp = h // patch_size, w // patch_size
         sub_hp = sub_wp = reso
-        patch_depth = torch.nn.functional.interpolate(depth, size=(hp * reso, wp * reso), mode="area").reshape(b, c, -1)
-
-        # import torchvision; torchvision.utils.save_image(zoe_pixel_values[0], "zoe_image.png")
+        patch_depth = F.interpolate(depth, size=(hp * reso, wp * reso), mode="area").reshape(b, c, -1)
         p_cam = (inv(K.float()) @ self.uv_h.float()) * patch_depth  # (b 3 3) @ (3 hw) -> (b 3 hw) * (b 1 hw) -> (b 3 hw)
         patch_p_cam = p_cam.reshape(b, 3, hp, sub_hp, wp, sub_wp).permute(0, 2, 4, 3, 5, 1).reshape(b, hp * wp, -1)
         return patch_p_cam
 
-    # Copied from transformers.models.llava.modeling_llava.LlavaForConditionalGeneration.get_input_embeddings with Llava->PaliGemma
     def get_input_embeddings(self):
         return self.language_model.get_input_embeddings()
 
-    # Copied from transformers.models.llava.modeling_llava.LlavaForConditionalGeneration.set_input_embeddings with Llava->PaliGemma
     def set_input_embeddings(self, value):
         self.language_model.set_input_embeddings(value)
 
-    # Copied from transformers.models.llava.modeling_llava.LlavaForConditionalGeneration.get_output_embeddings with Llava->PaliGemma
     def get_output_embeddings(self):
         return self.language_model.get_output_embeddings()
 
-    # Copied from transformers.models.llava.modeling_llava.LlavaForConditionalGeneration.set_output_embeddings with Llava->PaliGemma
     def set_output_embeddings(self, new_embeddings):
         self.language_model.set_output_embeddings(new_embeddings)
 
-    # Copied from transformers.models.llava.modeling_llava.LlavaForConditionalGeneration.set_decoder with Llava->PaliGemma
     def set_decoder(self, decoder):
         self.language_model.set_decoder(decoder)
 
-    # Copied from transformers.models.llava.modeling_llava.LlavaForConditionalGeneration.get_decoder with Llava->PaliGemma
     def get_decoder(self):
         return self.language_model.get_decoder()
 
-    # Copied from transformers.models.llava.modeling_llava.LlavaForConditionalGeneration.tie_weights with Llava->PaliGemma
     def tie_weights(self):
         return self.language_model.tie_weights()
     
@@ -395,11 +251,7 @@ class SpatialVLAForConditionalGeneration(SpatialVLAPreTrainedModel, GenerationMi
         pad_to_multiple_of: Optional[int] = None,
         mean_resizing: bool = True,
     ) -> nn.Embedding:
-        # TODO: is_deepspeed_zero3_enabled gather
-        print(f"resize token embeddings from {self.language_model.get_output_embeddings().weight.shape} to (*,{new_num_tokens})")
         model_embeds = self.language_model.resize_token_embeddings(new_num_tokens, pad_to_multiple_of, mean_resizing)
-
-        # update base model and current model config
         vocab_size = model_embeds.weight.shape[0]
         self.config.text_config.vocab_size = self.vocab_size = self.config._vocab_size = vocab_size
         self.tie_weights()
@@ -436,18 +288,12 @@ class SpatialVLAForConditionalGeneration(SpatialVLAPreTrainedModel, GenerationMi
             )
 
         if attention_mask is not None and attention_mask.dim() == 4:
-            # In this case we assume that the mask comes already in inverted form and requires no inversion or slicing.
             return attention_mask
 
-        causal_mask = torch.full(
-            (sequence_length, target_length), fill_value=min_dtype, dtype=self.dtype, device=cache_position.device
-        )
-        # Causal diagonal mask only if training, otherwise attend to the whole prefix. Training-specific attn for prefix is handled below
+        causal_mask = torch.full((sequence_length, target_length), fill_value=min_dtype, dtype=self.dtype, device=cache_position.device)
         if sequence_length != 1:
-            if is_training:
-                causal_mask = torch.triu(causal_mask, diagonal=1)
-            else:
-                causal_mask[:, :sequence_length] = 0.0
+            if is_training: causal_mask = torch.triu(causal_mask, diagonal=1)
+            else: causal_mask[:, :sequence_length] = 0.0
 
         causal_mask *= torch.arange(target_length, device=cache_position.device) > cache_position.reshape(-1, 1)
         causal_mask = causal_mask[None, None, :, :].expand(inputs_lead_dim, 1, -1, -1)
@@ -456,29 +302,13 @@ class SpatialVLAForConditionalGeneration(SpatialVLAPreTrainedModel, GenerationMi
             mask_length = attention_mask.shape[-1]
             padding_mask = causal_mask[:, :, :, :mask_length] + attention_mask[:, None, None, :].to(causal_mask.device)
             padding_mask = padding_mask == 0
-            causal_mask[:, :, :, :mask_length] = causal_mask[:, :, :, :mask_length].masked_fill(
-                padding_mask, min_dtype
-            )
-            # we are training thus we need to create a full mask on the image + prefix but causal on suffix
+            causal_mask[:, :, :, :mask_length] = causal_mask[:, :, :, :mask_length].masked_fill(padding_mask, min_dtype)
             if is_training:
-                causal_mask[:, :, :, :mask_length] = causal_mask[:, :, :, :mask_length].masked_fill(
-                    token_type_ids[:, None, None, :].to(causal_mask.device) == 0, 0
-                )
+                causal_mask[:, :, :, :mask_length] = causal_mask[:, :, :, :mask_length].masked_fill(token_type_ids[:, None, None, :].to(causal_mask.device) == 0, 0)
         return causal_mask
 
     def get_image_features(self, pixel_values: torch.FloatTensor, intrinsic: torch.FloatTensor):
-        """
-        Obtains image last hidden states from the vision tower and apply multimodal projection.
-
-        Args:
-            pixel_values (`torch.FloatTensor]` of shape `(batch_size, channels, height, width)`)
-               The tensors corresponding to the input images.
-        Returns:
-            image_features (`torch.Tensor`): Image feature tensor of shape `(num_images, image_length, embed_dim)`).
-        """
-        # mintrinsic = intrinsic.reshape(-1, 3, 3)
-        # siglip vision tower
-        siglip_pixel_values = F.normalize(pixel_values, mean=SIGLIP_MEAN, std=SIGLIP_STD)
+        siglip_pixel_values = TF.normalize(pixel_values, mean=SIGLIP_MEAN, std=SIGLIP_STD)
         image_outputs = self.vision_tower(siglip_pixel_values)
 
         # ego3d position encoding
@@ -487,13 +317,12 @@ class SpatialVLAForConditionalGeneration(SpatialVLAPreTrainedModel, GenerationMi
             with torch.no_grad():
                 pvh, pvw = pixel_values.shape[-2:]
                 depth = self.vision_zoe_model(pixel_values=zoe_pixel_values).predicted_depth
-                depth = torch.nn.functional.interpolate(
+                depth = F.interpolate(
                     depth.unsqueeze(1),
                     size=(pvh+2*ph, pvw+2*pw),
                     mode="bicubic",
                     align_corners=True,
                 )[..., ph:-ph, pw:-pw]
-                # depth = torch.clamp(depth, 0., 4.0) # NOTE: we find that depth w/o clamp performs better
                 xyz = self.backproject_patch(
                     intrinsic, depth, patch_size=self.config.vision_config.patch_size, reso=self.config.ego3d_patch_reso
                 )  # (b, n, 3*4)
@@ -505,8 +334,6 @@ class SpatialVLAForConditionalGeneration(SpatialVLAPreTrainedModel, GenerationMi
         image_features = image_features / (self.config.text_config.hidden_size**0.5)
         return image_features
 
-    @add_start_docstrings_to_model_forward(PALIGEMMA_INPUTS_DOCSTRING)
-    @replace_return_docstrings(output_type=SpatialVLACausalLMOutputWithPast, config_class=_CONFIG_FOR_DOC)
     def forward(
         self,
         input_ids: torch.LongTensor = None,
@@ -526,93 +353,29 @@ class SpatialVLAForConditionalGeneration(SpatialVLAPreTrainedModel, GenerationMi
         return_dict: Optional[bool] = None,
         num_logits_to_keep: int = 0,
     ) -> Union[Tuple, SpatialVLACausalLMOutputWithPast]:
-        r"""
-        Args:
-            labels (`torch.LongTensor` of shape `(batch_size, sequence_length)`, *optional*):
-                Labels for computing the masked language modeling loss. Indices should either be in `[0, ...,
-                config.text_config.vocab_size]` or -100 (see `input_ids` docstring). Tokens with indices set to `-100` are ignored
-                (masked), the loss is only computed for the tokens with labels in `[0, ..., config.text_config.vocab_size]`.
 
-            num_logits_to_keep (`int`, *optional*):
-                Calculate logits for the last `num_logits_to_keep` tokens. If `0`, calculate logits for all
-                `input_ids` (special case). Only last token logits are needed for generation, and calculating them only for that
-                token can save memory, which becomes pretty significant for long sequences or large vocabulary size.
-
-        Returns:
-
-        Example:
-
-        ```python
-        >>> from PIL import Image
-        >>> import requests
-        >>> from transformers import AutoProcessor, PaliGemmaForConditionalGeneration
-
-        >>> model = PaliGemmaForConditionalGeneration.from_pretrained("google/PaliGemma-test-224px-hf")
-        >>> processor = AutoProcessor.from_pretrained("google/PaliGemma-test-224px-hf")
-
-        >>> prompt = "answer en Where is the cow standing?"
-        >>> url = "https://huggingface.co/gv-hf/PaliGemma-test-224px-hf/resolve/main/cow_beach_1.png"
-        >>> image = Image.open(requests.get(url, stream=True).raw)
-
-        >>> inputs = processor(images=image, text=prompt,  return_tensors="pt")
-
-        >>> # Generate
-        >>> generate_ids = model.generate(**inputs, max_length=30)
-        >>> processor.batch_decode(generate_ids, skip_special_tokens=True, clean_up_tokenization_spaces=False)[0]
-        "answer en Where is the cow standing?\nbeach"
-        ```"""        
-        # print(f"**************************************\n \
-        #       input_ids {input_ids} \n \
-        #       labels {labels} \n \
-        #       token_type_ids {token_type_ids} \n \
-        #       attention_mask {attention_mask} \n \
-        #       actions {actions} \n \
-        #         **************************************"
-        #       )
-        # print(f"model.language_model.config._attn_implementation {self.language_model.config._attn_implementation} model.config.vision_config._attn_implementation_internal {self.config.vision_config._attn_implementation_internal} \n \
-        #       model.vision_tower.config._attn_implementation {self.vision_tower.config._attn_implementation} model.config.vision_config._attn_implementation_internal {self.config.vision_config._attn_implementation_internal}")
-        # __import__("ipdb").set_trace()
-        if (input_ids is None) ^ (inputs_embeds is not None):
-            raise ValueError("You must specify exactly one of input_ids or inputs_embeds")
-
-        if pixel_values is not None and inputs_embeds is not None:
-            raise ValueError(
-                "You cannot specify both pixel_values and inputs_embeds at the same time, and must specify either one"
-            )
-
-        output_attentions = output_attentions if output_attentions is not None else self.config.output_attentions
-        output_hidden_states = (
-            output_hidden_states if output_hidden_states is not None else self.config.output_hidden_states
-        )
-        return_dict = return_dict if return_dict is not None else self.config.use_return_dict
+        output_attentions = output_attentions or self.config.output_attentions
+        output_hidden_states = output_hidden_states or self.config.output_hidden_states
+        return_dict = return_dict or self.config.use_return_dict
 
         is_training = token_type_ids is not None and labels is not None
         
-        if inputs_embeds is None:
-            inputs_embeds = self.get_input_embeddings()(input_ids).clone() ## avoid checkpint grad True
+        if inputs_embeds is None: inputs_embeds = self.get_input_embeddings()(input_ids).clone() # avoid checkpint grad True
 
-        # NOTE: replace the fixed embeddings with trainable spatial embeddings
-        # BUG: LoRA causes inputs_embeds requires_grad = True
-        # peft: https://github.com/huggingface/peft/blob/ec92cdcc41fe1b141bfe1e0da69b38a7e601cc80/src/peft/peft_model.py#L687
-        # hf: https://github.com/huggingface/transformers/blob/05260a1fc1c8571a2b421ce72b680d5f1bc3e5a4/src/transformers/modeling_utils.py#L2545
-        # lora w/ prompt: https://discuss.huggingface.co/t/combine-between-lora-and-prompt-tunning/65151
         if self.config.use_spatial_token:
             spatial_selected = (input_ids >= self.config.action_token_begin_idx) & (input_ids < self.config.action_token_begin_idx + self.config.spatial_token_num)
             inputs_embeds[spatial_selected] = inputs_embeds[spatial_selected] * 0.0 + self.spatial_embed_tokens(input_ids[spatial_selected] - self.config.action_token_begin_idx)
 
         if cache_position is None:
             past_seen_tokens = past_key_values.get_seq_length() if past_key_values is not None else 0
-            cache_position = torch.arange(
-                past_seen_tokens, past_seen_tokens + inputs_embeds.shape[1], device=inputs_embeds.device
-            )
+            cache_position = torch.arange(past_seen_tokens, past_seen_tokens + inputs_embeds.shape[1], device=inputs_embeds.device)
 
         if position_ids is None:
             position_ids = cache_position.unsqueeze(0) + 1  # Paligemma positions are 1-indexed
 
-        # Merge text and images
+        # merge
         if pixel_values is not None:
             image_features = self.get_image_features(pixel_values, intrinsic)
-
             special_image_mask = (input_ids == self.config.image_token_index).unsqueeze(-1)
             special_image_mask = special_image_mask.expand_as(inputs_embeds).to(inputs_embeds.device)
             if inputs_embeds[special_image_mask].numel() != image_features.numel():
@@ -652,20 +415,16 @@ class SpatialVLAForConditionalGeneration(SpatialVLAPreTrainedModel, GenerationMi
         logits = outputs.logits
         loss = None
         if labels is not None:
-            # Upcast to float if we need to compute the loss to avoid potential precision issues
             logits = logits.float()
             shift_logits = logits[..., :-1, :]
             shift_labels = labels[..., 1:]
             if attention_mask is not None:
-                # we use the input attention mask to shift the logits and labels, because it is 2D.
-                # we also crop attn mask in case it is longer, which happens in PrefixTuning with peft
                 shift_attention_mask = attention_mask[:, -shift_logits.shape[1] :].to(logits.device)
                 shift_logits = shift_logits[shift_attention_mask.to(logits.device) != 0].contiguous()
                 shift_labels = shift_labels[shift_attention_mask.to(shift_labels.device) != 0].contiguous()
             else:
                 shift_logits = shift_logits.contiguous()
                 shift_labels = shift_labels.contiguous()
-            # Flatten the tokens
             loss_fct = nn.CrossEntropyLoss()
 
             flat_logits = shift_logits.view(-1, self.config.text_config.vocab_size)
@@ -684,6 +443,7 @@ class SpatialVLAForConditionalGeneration(SpatialVLAPreTrainedModel, GenerationMi
             image_hidden_states=image_features if pixel_values is not None else None,
         )
 
+    # AR inference
     def prepare_inputs_for_generation(
         self,
         input_ids,
@@ -700,7 +460,6 @@ class SpatialVLAForConditionalGeneration(SpatialVLAPreTrainedModel, GenerationMi
         labels=None,
         **kwargs,
     ):
-        # Overwritten -- custom `position_ids` and `pixel_values` handling
         model_inputs = self.language_model.prepare_inputs_for_generation(
             input_ids,
             past_key_values=past_key_values,
@@ -713,19 +472,13 @@ class SpatialVLAForConditionalGeneration(SpatialVLAPreTrainedModel, GenerationMi
             token_type_ids=token_type_ids,
             **kwargs,
         )
-
-        # position_ids in Paligemma are 1-indexed
         if model_inputs.get("position_ids") is not None:
             model_inputs["position_ids"] += 1
-        # If we're in cached decoding stage, pixel values should be None because input ids do not contain special image token anymore
-        # Otherwise we need pixel values to be passed to model. NOTE: use_cache=False needs pixel_values always
         if cache_position[0] == 0:
             model_inputs["pixel_values"] = pixel_values
         is_training = token_type_ids is not None and labels is not None
         if cache_position[0] == 0 and isinstance(past_key_values, HybridCache):
-            causal_mask = self._update_causal_mask(
-                attention_mask, token_type_ids, past_key_values, cache_position, input_ids, inputs_embeds, is_training
-            )
+            causal_mask = self._update_causal_mask(attention_mask, token_type_ids, past_key_values, cache_position, input_ids, inputs_embeds, is_training)
             model_inputs["attention_mask"] = causal_mask
         model_inputs["intrinsic"] = intrinsic
         return model_inputs
@@ -770,9 +523,6 @@ class SpatialVLAForConditionalGeneration(SpatialVLAPreTrainedModel, GenerationMi
             weights_only=weights_only,
             **kwargs,
         )
-        # NOTE: tie the weights of the embed_tokens with lm head (donot work if un_tie_weight)
-        # model.language_model.tie_weights()
-        # NOTE: tie the data of spatial_embed_tokens with embed_tokens (BUG: forweight sync issue in training)
         if model.config.use_spatial_token: 
             model.language_model.model.embed_tokens.weight.data[-model.config.spatial_token_num:] = model.spatial_embed_tokens.weight.data
         return model

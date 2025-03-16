@@ -7,9 +7,7 @@ that represents a single trajectory, meaning each tensor has the same leading di
 
 import logging
 from typing import Dict
-
 import tensorflow as tf
-
 
 def chunk_act_obs(
     traj: Dict,
@@ -32,14 +30,6 @@ def chunk_act_obs(
     chunk_indices = tf.broadcast_to(tf.range(-backward_windows_size, 1) * backward_delta, [traj_len, backward_windows_size + 1]) + tf.broadcast_to(
         tf.range(traj_len)[:, None], [traj_len, backward_windows_size + 1]
     )
-
-    # action_chunk_indices = tf.broadcast_to(
-    #     tf.concat([tf.range(-backward_windows_size, 1) * backward_delta, tf.range(1, 1 + forward_window_size)], axis=0),
-    #     [traj_len, backward_windows_size + 1 + forward_window_size],
-    # ) + tf.broadcast_to(
-    #     tf.range(traj_len)[:, None],
-    #     [traj_len, backward_windows_size + 1 + forward_window_size],
-    # )
 
     action_chunk_indices = tf.broadcast_to(
         tf.range(0, 1 + forward_window_size),
