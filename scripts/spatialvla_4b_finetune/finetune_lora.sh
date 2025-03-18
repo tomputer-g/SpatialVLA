@@ -32,14 +32,14 @@ lora_target="linear"
 epoch=50
 save_steps=${save_steps:-10000}
 
-# ADAPT_ARGS="--adapt_emb scripts/gaussian_statistic_fractal.json" # use spatial embedding adaption
+# ADAPT_ARGS="--adapt_emb scripts/new_gaussian.json" # use spatial embedding adaption
 cur_time=$(date "+%H-%M-%S")
 date_dir=$(date "+%Y-%m-%d")
 
 # resume training from ckpt
 model_name_or_path=../pretrained/spatialvla-4b-224-pt
 note=$(basename $model_name_or_path)_lr${lr}_bs${PER_DEVICE_BATCH_SIZE}_node$((GPUS / GPUS_PER_NODE))_gpu${GPUS}_r${lora}_a${lora_alpha}_ep${epoch}_${lora_target}
-OUTPUT_DIR=${resume_path:-outputs/spatialvla_paligemma2_3b_finetune/$date_dir/${cur_time}_${mixture}_${note}}
+OUTPUT_DIR=${resume_path:-outputs/spatialvla_4b_finetune/$date_dir/${cur_time}_${mixture}_${note}}
 mkdir -p $OUTPUT_DIR
 
 export PYTHONPATH="${PYTHONPATH}:$(pwd)"
