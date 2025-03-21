@@ -344,18 +344,19 @@ def get_dataset_statistics(
 from pathlib import Path
 def save_dataset_statistics(dataset_statistics, out_path: Path) -> Dict:
     """Saves a `ds_stats.json` file."""
+    for _, stats in dataset_statistics.items():
+        for k in stats["action"].keys():
+            stats["action"][k] = stats["action"][k].tolist()
+        if "proprio" in stats:
+            for k in stats["proprio"].keys():
+                stats["proprio"][k] = stats["proprio"][k].tolist()
+        if "num_trajectories" in stats:
+            stats["num_trajectories"] = stats["num_trajectories"].item()
+        if "num_transitions" in stats:
+            stats["num_transitions"] = stats["num_transitions"].item()
+    
     if not out_path.exists():
         with open(out_path, "w") as f_json:
-            for _, stats in dataset_statistics.items():
-                for k in stats["action"].keys():
-                    stats["action"][k] = stats["action"][k].tolist()
-                if "proprio" in stats:
-                    for k in stats["proprio"].keys():
-                        stats["proprio"][k] = stats["proprio"][k].tolist()
-                if "num_trajectories" in stats:
-                    stats["num_trajectories"] = stats["num_trajectories"].item()
-                if "num_transitions" in stats:
-                    stats["num_transitions"] = stats["num_transitions"].item()
             json.dump(dataset_statistics, f_json, indent=2)
         print(f"Saved dataset statistics file at path {out_path}")
     return dataset_statistics
