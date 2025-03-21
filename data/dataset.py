@@ -109,8 +109,8 @@ class OpenXIterableDataset(IterableDataset):
             self.raw_length = fix_raw_length
             print(f"[Dataset] set a fixed dataset length {fix_raw_length} avoids the unexceptable traing interrupt!")
 
-        if self.current_rank == 0:
-            self.ds_stats_pc = save_dataset_statistics(self.ds_stats, Path(output_dir) / "ds_stats.json")
+        
+        self.ds_stats_pc = save_dataset_statistics(self.ds_stats, Path(output_dir) / "ds_stats.json")
 
     def __len__(self):
         if self.use_raw_dataloader:
