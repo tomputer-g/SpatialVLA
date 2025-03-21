@@ -359,7 +359,7 @@ def main():
     SpatialVLAProcessor.register_for_auto_class()
 
     # build processor
-    statistic = train_dataset.ds_stats
+    statistic = train_dataset.ds_stats_pc
     if model_args.model_name_or_path is None:
         intrinsic_config = json.load(open(data_args.intrinsic_config_path))
         paligemma_processor = PaliGemmaProcessor.from_pretrained(model_args.vlm_path, local_files_only=True)

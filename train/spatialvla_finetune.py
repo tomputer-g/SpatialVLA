@@ -312,7 +312,7 @@ def main():
     SpatialVLAProcessor.register_for_auto_class()
 
     # build processor
-    statistic = train_dataset.ds_stats
+    statistic = train_dataset.ds_stats_pc
     _processor.statistics.update(statistic)
     processor = SpatialVLAProcessor(
         image_processor=_processor.image_processor,
