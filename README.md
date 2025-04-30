@@ -1,6 +1,6 @@
 <div align="center">
 
-# SpatialVLA: Exploring Spatial Representations for Visual-Language-Action Models
+# SpatialVLA: Exploring Spatial Representations for Visual-Language-Action Models (RSS 2025)
 A spatial-enhanced vision-language-action model trained on 1.1 Million real robot episodes. 🤗
 purely huggingFace-based, concise code with efficient performance.
 
