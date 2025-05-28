@@ -4,14 +4,11 @@
 A spatial-enhanced vision-language-action model trained on 1.1 Million real robot episodes. 🤗
 purely huggingFace-based, concise code with efficient performance.
 
-<!-- [Delin Qu*](https://github.com/DelinQu), [HaomingSong*](https://github.com/HaomingSong), [Qizhi Chen*](https://github.com/Tavish9), [Yuanqi Yao](https://scholar.google.com/citations?user=s482QHoAAAAJ&hl=zh-CN), [Xinyi Ye](https://scholar.google.com/citations?user=GlYeyfoAAAAJ&hl=zh-CN), [Yan Ding](https://yding25.com), [Zhigang Wang](https://scholar.google.com/citations?user=cw3EaAYAAAAJ&hl=zh-CN), [JiaYuan Gu](https://cseweb.ucsd.edu/~jigu/), [Bin Zhao](https://scholar.google.com/citations?hl=zh-CN&user=DQB0hqwAAAAJ), [Xuelong Li†](https://scholar.google.com/citations?user=ahUibskAAAAJ)
+[Delin Qu*](https://github.com/DelinQu)<sup>1,2</sup>, [HaomingSong*](https://github.com/HaomingSong)<sup>1,3</sup>, [Qizhi Chen*](https://github.com/Tavish9)<sup>1,4</sup>, [Dong Wang†](https://scholar.google.com/citations?user=dasL9V4AAAAJ&hl=en)<sup>1</sup>, [Yuanqi Yao](https://scholar.google.com/citations?user=s482QHoAAAAJ&hl=zh-CN)<sup>1</sup>, [Xinyi Ye](https://scholar.google.com/citations?user=GlYeyfoAAAAJ&hl=zh-CN)<sup>1</sup>, [Yan Ding](https://yding25.com)<sup>1</sup>, [Zhigang Wang](https://scholar.google.com/citations?user=cw3EaAYAAAAJ&hl=zh-CN)<sup>1</sup>, 
 
-Shanghai AI Laboratory, ShanghaiTech, TeleAI -->
+[Jiayuan Gu](https://cseweb.ucsd.edu/~jigu/)<sup>5</sup>, [Bin Zhao†](https://scholar.google.com/citations?hl=zh-CN&user=DQB0hqwAAAAJ)<sup>1</sup>, [Xuelong Li](https://scholar.google.com/citations?user=ahUibskAAAAJ)<sup>1,6</sup>
 
-<!-- <div align="center">
-  <img width="500" alt="image" src="https://github.com/user-attachments/assets/930e6814-8a9f-43e1-a284-118a5732daa4">
-  <br>
-</div> -->
+Shanghai AI Laboratory<sup>1</sup>, Fudan University<sup>2</sup>, Shanghai Jiao Tong University<sup>3</sup>, Zhejiang University<sup>4</sup>, ShanghaiTech University<sup>5</sup>, TeleAI<sup>6</sup>
 
 [\[📄Paper\]](https://arxiv.org/pdf/2501.15830)  [\[🔥Project Page\]](https://spatialvla.github.io/) [\[📖 Document\]](#documents) [\[🚀 Quick Start\]](#-quick-start) [\[🤗 Model Zoo\]](https://huggingface.co/collections/IPEC-COMMUNITY/foundation-vision-language-action-model-6795eb96a9c661f90236acbb) [\[✅ Performance\]](#-performance-in-simulation-and-real-world) [\[🙋 FAQs\]](#-faqs)
 
