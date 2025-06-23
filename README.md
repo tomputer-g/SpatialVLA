@@ -573,14 +573,11 @@ This project is released under the [MIT license](LICENSE). Parts of this project
 If you find this project useful in your research, please consider cite:
 
 ```BibTeX
-@misc{qu2025spatialvlaexploringspatialrepresentations,
-      title={SpatialVLA: Exploring Spatial Representations for Visual-Language-Action Model}, 
-      author={Delin Qu and Haoming Song and Qizhi Chen and Yuanqi Yao and Xinyi Ye and Yan Ding and Zhigang Wang and JiaYuan Gu and Bin Zhao and Dong Wang and Xuelong Li},
-      year={2025},
-      eprint={2501.15830},
-      archivePrefix={arXiv},
-      primaryClass={cs.RO},
-      url={https://arxiv.org/abs/2501.15830}, 
+@article{qu2025spatialvla,
+  title={SpatialVLA: Exploring Spatial Representations for Visual-Language-Action Model},
+  author={Qu, Delin and Song, Haoming and Chen, Qizhi and Yao, Yuanqi and Ye, Xinyi and Ding, Yan and Wang, Zhigang and Gu, JiaYuan and Zhao, Bin and Wang, Dong and others},
+  journal={arXiv preprint arXiv:2501.15830},
+  year={2025}
 }
 ```
 
