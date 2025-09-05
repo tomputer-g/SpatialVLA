@@ -5,7 +5,7 @@ from PIL import Image
 from transformers import AutoModel, AutoProcessor
 
 parser = argparse.ArgumentParser("Huggingface AutoModel Tesing")
-parser.add_argument("--model_name_or_path", default="", help="pretrained model name or path.")
+parser.add_argument("--model_name_or_path", default="IPEC-COMMUNITY/spatialvla-4b-224-pt", help="pretrained model name or path.")
 parser.add_argument("--num_images", type=int, default=1, help="num_images for testing.")
 
 args = parser.parse_args()

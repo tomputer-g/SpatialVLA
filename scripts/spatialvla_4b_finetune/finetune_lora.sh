@@ -6,7 +6,6 @@ if [ "$DEBUG" = true ]; then
   GPUS_PER_NODE=1
   PER_DEVICE_BATCH_SIZE=2
   shuffle_buffer_size=2
-  mixture=bridge_orig
   NUM_WORKERS=0
   TORCH_RUN_ARGS="--standalone --nnodes=1"
   save_steps=50
@@ -19,8 +18,8 @@ PER_DEVICE_BATCH_SIZE=${PER_DEVICE_BATCH_SIZE:-32}
 BATCH_SIZE=${BATCH_SIZE:-$((GPUS * PER_DEVICE_BATCH_SIZE))}
 GRADIENT_ACC=$((BATCH_SIZE / PER_DEVICE_BATCH_SIZE / GPUS))
 
-mixture=bridge_orig
-mixture=${mixture:-oxe_magic_soup_plus}
+mixture=uiuc_d3field
+# mixture=${mixture:-oxe_magic_soup_plus}
 NUM_WORKERS=${NUM_WORKERS:-1}
 shuffle_buffer_size=${shuffle_buffer_size:-8192} # large buffer for better shuffling, we use 131072 in pretrain
 
@@ -60,7 +59,7 @@ torchrun $TORCH_RUN_ARGS \
   --lora_alpha ${lora_alpha} \
   --lora_target ${lora_target} \
   --ignore_data_skip True \
-  --data_root_dir /oss/vla_ptm_hwfile/DATA/open_x_embodiment_converted \
+  --data_root_dir PATH_TO_LOCAL_DOWNLOADED_DATASET \
   --data_mix ${mixture} \
   --shuffle_buffer_size ${shuffle_buffer_size} \
   --obs_backward_steps 0 \

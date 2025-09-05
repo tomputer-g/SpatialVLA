@@ -17,35 +17,53 @@ purely huggingFace-based, concise code with efficient performance.
 </div>
 
 # Actual Setup
-```
+
+##Create env with packages
+
+Install torch first because Flash-attn is dumb and its setup requires torch and it gets installed first for whatever reason.
+
+You may get a cuda toolkit version mismatch (torch 2.5.1 built with cuda 12.4, has to match your system version).
+```bash
 git clone git@github.com:SpatialVLA/SpatialVLA.git --depth 1
 conda create -n spatialvla python=3.10
 conda activate spatialvla
-
-# Create env with packages
-# Install torch first because Flash-attn is dumb and its setup requires torch and it gets installed first for whatever reason.
 pip install torch==2.5.1
 # Install the rest. Flash attention will take hour(s) to build.
-# You may get a cuda toolkit version mismatch (torch 2.5.1 built with cuda 12.4, has to match your system version).
-# Update the drivers as necessary or try to find a torch version built with a different cuda version. After that...
+# Update the drivers as necessary or try to find a torch version built with a different cuda version.
 pip install -r requirements.txt
+```
 
-# Download model checkpoint first. Also, add exec privileges first to the script
+## Get the dataset/ckpts
+```bash
+# Download model checkpoint first (~8GB).
 chmod +x ./scripts/hf_download.sh
-
-# Model checkpoint takes ~8 GBs locally.
-
 bash ./scripts/hf_download.sh
+```
+
 
 Encountering this error:
 [rank0]: OSError: Incorrect path_or_model_id: '../pretrained/spatialvla-4b-224-pt'. Please provide either the path to a local folder or the repo_id of a model on the Hub.
-# Solution: Replace the relative path with a full specified path. The path when resolved was incorrect which causes HF to not find the model checkpoint and throw this completely unrelated error.
 
-Encountering this error:
-[rank0]: FileNotFoundError: Could not load dataset info from /oss/vla_ptm_hwfile/DATA/open_x_embodiment_converted/bridge_orig/1.0.0/dataset_info.json
+Solution: Replace the relative path with a full specified path. The path when resolved was incorrect which causes HF to not find the model checkpoint and throw this completely unrelated error.
 
-# Need to download (some subset of) open X-embodiment dataset. https://robotics-transformer-x.github.io/ -> https://docs.google.com/spreadsheets/d/1rPBD77tk60AEIGZrGSODwyyzs5FgCU9Uz3h-3_t2A9g/edit?gid=0#gid=0
-# Full dataset is 8965GBs, which I'm not gonna deal with. There are smaller subsets with Xarm or Kinova that are from a few GBs to a few hundred GBs.
+### Dataset (Open X-Embodiment Dataset, 'OXE')
+
+Need to download (some subset of) open X-embodiment dataset. https://robotics-transformer-x.github.io/ -> https://docs.google.com/spreadsheets/d/1rPBD77tk60AEIGZrGSODwyyzs5FgCU9Uz3h-3_t2A9g/edit?gid=0#gid=0
+
+Since we are using Kinova, we probably want to download the portion that is involved with Kinova Gen3 arm (uiuc_d3field/0.1.0) 
+
+Make a folder locally, then download the dataset (15GB)
+
+If you do not have gsutil installed, visit https://cloud.google.com/storage/docs/gsutil_install#install
+
+```bash
+gsutil -m cp -r "gs://gresearch/robotics/uiuc_d3field/0.1.0" .
+```
+
+## Modify the lora fine tuning script
+Change out the location placeholders to 1) the model checkpoint and 2) the location of the downloaded dataset.
+
+TODO continue here
 
 ```
 
